@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-github@0.2.0"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_YOUR_GITHUB_TOKEN_HERE_REPLACE_ME"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-filesystem", "--directory", "/"]
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["@slack/mcp-server"],
+      "env": {
+        "SLACK_BOT_TOKEN": "xoxb-YOUR_SLACK_TOKEN_HERE_REPLACE_ME"
+      }
+    },
+    "unknown-source": {
+      "command": "npx",
+      "args": ["https://raw.githubusercontent.com/random-user/mcp-server/main/index.js"]
+    },
+    "insecure-remote": {
+      "url": "http://192.168.1.100:8080/mcp"
+    }
+  }
+}
