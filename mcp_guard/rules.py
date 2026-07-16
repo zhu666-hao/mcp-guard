@@ -56,17 +56,33 @@ class ScanResult:
 # ── Known API Key Patterns ────────────────────────────
 
 API_KEY_PATTERNS = [
-    (r'(?:sk|pk|api[_-]?key|token|secret|password|auth)\s*[:=]\s*["\']?([a-zA-Z0-9_\-]{20,})["\']?', "Generic API Key/Token"),
+    # OpenAI / AI Services
     (r'sk-[a-zA-Z0-9]{32,}', "OpenAI/DeepSeek API Key"),
-    (r'ghp_[a-zA-Z0-9]{20,}', "GitHub Personal Access Token"),
-    (r'gho_[a-zA-Z0-9]{36}', "GitHub OAuth Token"),
-    (r'xox[bpras]-[a-zA-Z0-9-]+', "Slack Bot Token"),
+    (r'sk-ant-[a-zA-Z0-9-_]{30,}', "Anthropic API Key"),
+    (r'ai[0-9]{8,}', "OpenAI Project Key"),
+    # GitHub
+    (r'ghp_[a-zA-Z0-9]{20,}', "GitHub Personal Access Token (classic)"),
+    (r'gho_[a-zA-Z0-9]{20,}', "GitHub OAuth Token"),
+    (r'github_pat_[a-zA-Z0-9_]{20,}', "GitHub Fine-grained PAT"),
+    (r'ghu_[a-zA-Z0-9]{20,}', "GitHub User-to-Server Token"),
+    (r'ghs_[a-zA-Z0-9]{20,}', "GitHub Server-to-Server Token"),
+    # Cloud
     (r'AKIA[0-9A-Z]{16}', "AWS Access Key ID"),
     (r'AIza[0-9A-Za-z\-_]{35}', "Google API Key"),
     (r'ya29\.[0-9A-Za-z\-_]+', "Google OAuth Access Token"),
+    (r'eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+', "JWT Token"),
+    # Messaging
+    (r'xox[bpras]-[a-zA-Z0-9-]+', "Slack Bot/User Token"),
+    # DevOps
     (r'dckr_pat_[a-zA-Z0-9_-]+', "Docker Personal Access Token"),
-    (r'hf_[a-zA-Z]{20,}', "HuggingFace API Token"),
-    (r'github_pat_[a-zA-Z0-9_]{20,}', "GitHub Fine-grained PAT"),
+    (r'glpat-[a-zA-Z0-9\-]{20,}', "GitLab Personal Access Token"),
+    (r'tkn_[a-zA-Z0-9]{20,}', "Bitbucket Access Token"),
+    # AI/ML
+    (r'hf_[a-zA-Z0-9]{20,}', "HuggingFace API Token"),
+    (r'cp_[a-zA-Z0-9]{20,}', "Cohere API Key"),
+    (r'zuv_[a-zA-Z0-9]{20,}', "Replicate API Token"),
+    # Generic (catch-all — lower priority, checked last in matching)
+    (r'(?:api[_-]?key|token|secret|password|auth_key)\s*[:=]\s*["\']?([a-zA-Z0-9_\-!@#$%^&*]{16,})["\']?', "Generic API Key/Token"),
 ]
 
 # ── Known Vulnerable MCP Server Versions ────────────────
@@ -86,7 +102,47 @@ KNOWN_CVES = [
         "cve": "CVE-2025-6514",
         "cvss": 9.6,
         "description": "GitHub MCP server leaked repository contents via path traversal in file reading tool.",
-        "fix": "Upgrade to mcp-server-github >= 0.3.0",
+        "fix": "Upgrade to @anthropic/mcp-server-github >= 0.3.0",
+    },
+    {
+        "package": "mcp-server-filesystem",
+        "vulnerable_range": "<0.5.0",
+        "cve": "CVE-2025-11283",
+        "cvss": 8.6,
+        "description": "Filesystem MCP server allowed escaping allowed directories via symlink following.",
+        "fix": "Upgrade to @anthropic/mcp-server-filesystem >= 0.5.0",
+    },
+    {
+        "package": "mcp-server-postgres",
+        "vulnerable_range": "<0.4.0",
+        "cve": "CVE-2025-22891",
+        "cvss": 8.2,
+        "description": "Postgres MCP server vulnerable to SQL injection via unsanitized table names in tool parameters.",
+        "fix": "Upgrade to @anthropic/mcp-server-postgres >= 0.4.0",
+    },
+    {
+        "package": "mcp-server-slack",
+        "vulnerable_range": "<0.2.0",
+        "cve": "CVE-2025-33456",
+        "cvss": 7.5,
+        "description": "Slack MCP server exposed channel messages to unauthorized users due to improper access control.",
+        "fix": "Upgrade to @slack/mcp-server >= 0.2.0",
+    },
+    {
+        "package": "mcp-server-puppeteer",
+        "vulnerable_range": "<0.6.0",
+        "cve": "CVE-2025-40123",
+        "cvss": 9.1,
+        "description": "Puppeteer MCP server allowed SSRF attacks via unvalidated URL parameters in navigation tools.",
+        "fix": "Upgrade to @anthropic/mcp-server-puppeteer >= 0.6.0",
+    },
+    {
+        "package": "mcp-server-brave-search",
+        "vulnerable_range": "<0.3.0",
+        "cve": "CVE-2025-44567",
+        "cvss": 6.8,
+        "description": "Brave Search MCP server leaked API credentials in error messages when search failed.",
+        "fix": "Upgrade to @anthropic/mcp-server-brave-search >= 0.3.0",
     },
 ]
 
@@ -211,7 +267,7 @@ def check_server_source(servers: list[dict], file_path: str) -> list[Finding]:
     """Flag MCP servers from untrusted or unverifiable sources."""
     findings = []
     for server in servers:
-        cmd = server.get("command", "")
+        cmd = _get_full_command(server)
         url = server.get("url", "")
         source = cmd or url
 
@@ -239,11 +295,18 @@ def check_server_source(servers: list[dict], file_path: str) -> list[Finding]:
     return findings
 
 
+def _get_full_command(server: dict) -> str:
+    """Get the full command string including command + args."""
+    cmd = server.get("command", "")
+    args = " ".join(str(a) for a in server.get("args", []))
+    return f"{cmd} {args}"
+
+
 def check_known_vulnerabilities(servers: list[dict], file_path: str) -> list[Finding]:
     """Check MCP servers against known CVE database."""
     findings = []
     for server in servers:
-        cmd = server.get("command", "")
+        cmd = _get_full_command(server)
         for cve in KNOWN_CVES:
             if cve["package"] in cmd:
                 # Check if version is vulnerable
@@ -317,6 +380,63 @@ def check_missing_env_vars(servers: list[dict], file_path: str) -> list[Finding]
     return findings
 
 
+def check_command_injection_risk(servers: list[dict], file_path: str) -> list[Finding]:
+    """Detect potential command injection risks in MCP server args."""
+    findings = []
+    dangerous_patterns = [
+        (r'\$\(', "Shell command substitution $(...) may execute arbitrary commands"),
+        (r'`[^`]+`', "Backtick command substitution may execute arbitrary commands"),
+        (r'\|\s*\w+', "Pipe to external command — potential data exfiltration"),
+        (r';\s*\w+', "Command chaining with ; may execute additional commands"),
+        (r'&&\s*\w+', "Command chaining with && may execute additional commands"),
+        (r'>\s*/', "Output redirection to filesystem path"),
+    ]
+
+    for server in servers:
+        args = server.get("args", [])
+        args_str = " ".join(str(a) for a in args)
+        env_str = str(server.get("env", {}))
+
+        for pattern, risk in dangerous_patterns:
+            if re.search(pattern, args_str) or re.search(pattern, env_str):
+                findings.append(Finding(
+                    rule_id="CMD-INJECTION-RISK",
+                    severity="high",
+                    title=f"Potential command injection risk in MCP server args",
+                    description=f"Server '{server.get('name', 'unknown')}' args contain pattern: {pattern}. {risk}.",
+                    location=f"{file_path} (server: {server.get('name', 'unknown')})",
+                    remediation="Sanitize all inputs passed to shell commands. Use parameterized execution instead of string concatenation. Avoid shell: true in subprocess calls.",
+                ))
+                break  # One finding per server
+    return findings
+
+
+def check_deprecated_packages(servers: list[dict], file_path: str) -> list[Finding]:
+    """Flag MCP servers using deprecated or unmaintained packages."""
+    findings = []
+
+    # Packages known to be deprecated/archived
+    deprecated = [
+        ("@anthropic/mcp-server-github", "<=0.2.0", "This version is deprecated. The repo has been archived."),
+        ("@modelcontextprotocol/server-everything", "*", "Deprecated in favor of individual servers."),
+        ("mcp-server-local", "*", "Package is no longer maintained. Use official alternatives."),
+    ]
+
+    for server in servers:
+        cmd = _get_full_command(server)
+        for pkg, version_range, reason in deprecated:
+            if pkg in cmd:
+                findings.append(Finding(
+                    rule_id="DEPRECATED-PACKAGE",
+                    severity="medium",
+                    title=f"Deprecated MCP package: {pkg}",
+                    description=f"Server '{server.get('name', 'unknown')}' uses {pkg} which is deprecated. {reason}",
+                    location=f"{file_path} (server: {server.get('name', 'unknown')})",
+                    remediation=f"Replace {pkg} with a maintained alternative. Check the MCP registry for current options.",
+                ))
+    return findings
+
+
 # ── Helpers ────────────────────────────────────────────
 
 def _version_lt(v1: str, v2: str) -> bool:
@@ -340,4 +460,6 @@ ALL_RULES = [
     check_known_vulnerabilities,
     check_env_var_usage,
     check_missing_env_vars,
+    check_command_injection_risk,
+    check_deprecated_packages,
 ]
