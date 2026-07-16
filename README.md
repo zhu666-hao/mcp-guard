@@ -5,9 +5,50 @@
 Find leaked API keys, excessive permissions, and vulnerable servers before attackers do.
 
 ```bash
-pip install mcp-guard
-mcp-guard scan
+pip install mcp-vigil
+mcp-vigil scan
 ```
+
+---
+
+## Demo
+
+```
+$ mcp-vigil scan
+
+╔══════════════════════════════════════╗
+║       MCP GUARD — Security Audit     ║
+╚══════════════════════════════════════╝
+
+📄 ~/.cursor/mcp.json
+   Servers: 5  |  Findings: 0 critical, 3 high, 1 other  |  Score: 67/100 (C)
+
+🟠 [HIGH] Excessive filesystem access: /
+   Server 'filesystem' has --directory set to / — entire disk exposed.
+   Fix: Restrict to a specific subdirectory.
+
+🟠 [HIGH] Secret in env block of MCP config
+   Server 'github', env: GITHUB_PERSONAL_ACCESS_TOKEN
+   Contains a hardcoded secret value in the config file.
+   Fix: Move to .env file.
+
+🟠 [HIGH] Secret in env block of MCP config
+   Server 'slack', env: SLACK_BOT_TOKEN
+   Contains a hardcoded secret value in the config file.
+   Fix: Move to .env file.
+
+🟡 [MEDIUM] MCP server using HTTP without TLS
+   Server 'insecure-remote' connects via http:// — data not encrypted.
+   Fix: Use https:// instead.
+
+────────────────────────────────────────
+  Files scanned:  1
+  Total findings: 4  (3 HIGH, 1 MEDIUM)
+
+⚠️  High-severity issues found — fix soon
+```
+
+*[Add a real screenshot here — take one with your terminal and drop it in]*  
 
 ---
 
