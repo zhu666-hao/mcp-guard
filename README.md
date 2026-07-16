@@ -48,7 +48,7 @@ $ mcp-vigil scan
 ⚠️  High-severity issues found — fix soon
 ```
 
-*[Add a real screenshot here — take one with your terminal and drop it in]*  
+![mcp-vigil demo](assets/demo.png)  
 
 ---
 
