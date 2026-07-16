@@ -1,6 +1,6 @@
 [project]
 name = "mcp-vigil"
-version = "0.2.0"
+version = "0.3.0"
 description = "Security audit CLI for MCP (Model Context Protocol) configurations. Find leaked API keys, excessive permissions, and vulnerable servers before attackers do."
 license = {text = "MIT"}
 readme = "README.md"

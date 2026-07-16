@@ -228,6 +228,73 @@ def cmd_rules():
         print()
 
 
+def cmd_fix(args: list[str]):
+    """Auto-fix security issues in MCP configurations."""
+    from .fixer import fix_all, fix_file
+
+    dry_run = "--dry-run" in args or "-n" in args
+    paths = []
+    i = 0
+    while i < len(args):
+        if args[i] in ("--path", "-p") and i + 1 < len(args):
+            paths.append(args[i + 1])
+            i += 2
+        elif args[i] in ("--no-color",):
+            Colors.disable()
+            i += 1
+        else:
+            i += 1
+
+    if paths:
+        for p in paths:
+            file_path = Path(p).expanduser().resolve()
+            if not file_path.exists():
+                print(f"mcp-guard: file not found: {p}")
+                continue
+            result = fix_file(file_path, dry_run=dry_run)
+            _print_fix_result(result, dry_run)
+    else:
+        results = fix_all(dry_run=dry_run)
+        if not results:
+            print(f"{Colors.GREEN}✅ No fixable issues found.{Colors.RESET}")
+            return
+        for result in results:
+            _print_fix_result(result, dry_run)
+
+
+def _print_fix_result(result: dict, dry_run: bool):
+    file_path = result.get("file", "unknown")
+    fixed = result.get("fixed_count", 0)
+    skipped = result.get("skipped_count", 0)
+    backup = result.get("backup_path", "")
+    changes = result.get("changes", [])
+    preview = result.get("preview", "")
+
+    print()
+    print(f"  {Colors.BOLD}📄 {file_path}{Colors.RESET}")
+    print(f"  Fixed: {Colors.GREEN}{fixed}{Colors.RESET}  |  Skipped: {Colors.YELLOW}{skipped}{Colors.RESET}  |  Mode: {'DRY-RUN (preview only)' if dry_run else 'APPLIED'}")
+
+    for change in changes:
+        print(f"  ✅ {change['description']}")
+        if change.get("env_var_added"):
+            print(f"     {Colors.YELLOW}💡 Add to your .env: {change['env_var_added']}=your_real_value{Colors.RESET}")
+
+    if preview:
+        print(f"\n  {Colors.DIM}{'─' * 40}{Colors.RESET}")
+        print(f"  {Colors.BOLD}Preview of changes:{Colors.RESET}")
+        for line in preview.split("\n")[:30]:
+            if line.startswith("+"):
+                print(f"  {Colors.GREEN}{line}{Colors.RESET}")
+            elif line.startswith("-"):
+                print(f"  {Colors.RED}{line}{Colors.RESET}")
+            elif line.startswith("@@"):
+                print(f"  {Colors.CYAN}{line}{Colors.RESET}")
+
+    if backup:
+        print(f"\n  {Colors.DIM}📦 Backup saved to: {backup}{Colors.RESET}")
+    print()
+
+
 def cmd_version():
     """Show version."""
     print(f"mcp-guard v{__version__}")
@@ -239,10 +306,11 @@ def main():
     args = sys.argv[1:]
 
     if not args:
-        # Default: scan
         cmd_scan([])
     elif args[0] in ("scan", "s"):
         cmd_scan(args[1:])
+    elif args[0] in ("fix", "f"):
+        cmd_fix(args[1:])
     elif args[0] in ("rules", "r"):
         cmd_rules()
     elif args[0] in ("version", "v", "--version", "-v"):
@@ -250,7 +318,6 @@ def main():
     elif args[0] in ("help", "h", "--help", "-h"):
         print(__doc__)
     else:
-        # Treat as scan with args
         cmd_scan(args)
 
 
